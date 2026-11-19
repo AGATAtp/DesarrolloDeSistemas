@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using PrototipoCRUD.Data;
 using PrototipoCRUD.Models;
@@ -9,8 +9,6 @@ namespace PrototipoCRUD.Controllers
     {
         private const string MensajeBD =
             "No pudimos conectar con la base de datos. Revisa que PostgreSQL esté encendido y que la cadena de conexión de appsettings.json sea correcta.";
-        private const string MensajeDescuentoInvalido =
-            "El descuento máximo permitido es 20%. Ingresa un valor entre 0% y 20% para continuar.";
 
         private readonly VentaDAO _ventaDao;
         private readonly ClienteDAO _clienteDao;
@@ -23,12 +21,27 @@ namespace PrototipoCRUD.Controllers
 
         public IActionResult Index() => RedirectToAction(nameof(Registrar));
 
+        // Historial de compras por cliente (con filtros por fecha y cliente)
+        [HttpGet]
+        public IActionResult Historial(DateOnly? desde, DateOnly? hasta, int cliente = 0)
+        {
+            var modelo = new HistorialViewModel { Desde = desde, Hasta = hasta, IdCliente = cliente };
+            try
+            {
+                modelo.ClientesFiltro = _ventaDao.ObtenerClientesConCompras();
+                modelo.Ventas = _ventaDao.ObtenerHistorial(desde, hasta, cliente);
+            }
+            catch (Exception)
+            {
+                ViewBag.ErrorBD = MensajeBD;
+            }
+            return View(modelo);
+        }
+
+        // Pantalla de la nueva venta (cabecera + detalle en memoria)
         [HttpGet]
         public IActionResult Registrar()
         {
-            var sesion = ObtenerSesion();
-            if (sesion == null) return RedirectToAction("Login", "Account", new { returnUrl = "/Venta/Registrar" });
-
             var productos = new List<Producto>();
             var clientes = new List<Cliente>();
             try
@@ -42,21 +55,14 @@ namespace PrototipoCRUD.Controllers
             }
             ViewBag.Productos = productos;
             ViewBag.Clientes = clientes;
-            ViewBag.VendedorNombre = sesion.NombreCompleto;
-            ViewBag.VendedorUsuario = sesion.NombreUsuario;
-            return View(new Venta());
+            return View(new Venta()); // Fecha = ahora, Cliente = Consumidor Final
         }
 
+        // Confirmar venta: recibe cliente + ítems (JSON) y guarda todo en una transacción
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult Registrar([FromBody] VentaRequest? peticion)
         {
-            var sesion = ObtenerSesion();
-            if (sesion == null)
-            {
-                return Unauthorized(new { ok = false, mensaje = "Tu sesión expiró. Inicia sesión para continuar." });
-            }
-
             if (peticion?.Detalles == null || peticion.Detalles.Count == 0)
             {
                 return Json(new { ok = false, mensaje = "Agrega al menos un producto antes de confirmar la venta." });
@@ -64,13 +70,9 @@ namespace PrototipoCRUD.Controllers
 
             try
             {
-                var venta = new Venta
-                {
-                    IdCliente = peticion.IdCliente,
-                    IdVendedor = sesion.EmpleadoId,
-                    Vendedor = sesion.NombreCompleto
-                };
+                var venta = new Venta { IdCliente = peticion.IdCliente };
 
+                // Cliente: 0 = Consumidor Final, de lo contrario debe existir y estar activo
                 if (peticion.IdCliente != 0)
                 {
                     var cliente = _clienteDao.ObtenerPorId(peticion.IdCliente);
@@ -78,8 +80,10 @@ namespace PrototipoCRUD.Controllers
                     {
                         return Json(new { ok = false, mensaje = "El cliente seleccionado ya no está disponible. Elige otro." });
                     }
+                    venta.Cliente = cliente.NombreCompleto;
                 }
 
+                // Los precios se toman de la base de datos (no se confía en lo que envía el navegador)
                 var catalogo = _ventaDao.ObtenerProductos().ToDictionary(p => p.Id);
                 foreach (var item in peticion.Detalles)
                 {
@@ -109,28 +113,19 @@ namespace PrototipoCRUD.Controllers
                     }
                 }
 
+                // Validación: la venta debe tener detalles
                 if (venta.Detalles.Count == 0)
                 {
                     return Json(new { ok = false, mensaje = "Agrega al menos un producto antes de confirmar la venta." });
                 }
-
-                try
-                {
-                    venta.AplicarDescuento(peticion.PorcentajeDescuento);
-                }
-                catch (ArgumentOutOfRangeException)
-                {
-                    return Json(new { ok = false, mensaje = MensajeDescuentoInvalido });
-                }
-
-                if (venta.TotalFinal >= 99999999.99m)
+                if (venta.Total >= 99999999.99m)
                 {
                     return Json(new { ok = false, mensaje = "El total de la venta es demasiado grande. Divídela en dos ventas." });
                 }
 
                 venta.Fecha = DateTime.Now;
                 int idGenerado = _ventaDao.RegistrarVenta(venta);
-                string total = venta.TotalFinal.ToString("N2", CultureInfo.InvariantCulture);
+                string total = venta.Total.ToString("N2", CultureInfo.InvariantCulture);
 
                 return Json(new
                 {
@@ -144,69 +139,6 @@ namespace PrototipoCRUD.Controllers
             {
                 return Json(new { ok = false, mensaje = "No se pudo registrar la venta; no se guardó nada. " + MensajeBD });
             }
-        }
-
-        [HttpGet]
-        public IActionResult Historial()
-        {
-            var sesion = ObtenerSesion();
-            if (sesion == null) return RedirectToAction("Login", "Account", new { returnUrl = "/Venta/Historial" });
-            try
-            {
-                var historial = _ventaDao.ObtenerHistorial();
-                return View(historial);
-            }
-            catch (Exception)
-            {
-                ViewBag.ErrorBD = MensajeBD;
-                return View(new List<VentaHistorial>());
-            }
-        }
-
-        [HttpGet]
-        public IActionResult Auditoria()
-        {
-            var sesion = ObtenerSesion();
-            if (sesion == null) return RedirectToAction("Login", "Account", new { returnUrl = "/Venta/Auditoria" });
-            if (!PuedeVerAuditoria(sesion.Rol))
-            {
-                return RedirectToAction("Login", "Account");
-            }
-            try
-            {
-                var resumen = _ventaDao.ObtenerAuditoriaDescuentos();
-                return View(resumen);
-            }
-            catch (Exception)
-            {
-                ViewBag.ErrorBD = MensajeBD;
-                return View(new List<ResumenDescuentoVendedor>());
-            }
-        }
-
-        private UsuarioSesion? ObtenerSesion()
-        {
-            var nombre = HttpContext.Session.GetString("UsuarioNombre");
-            if (string.IsNullOrWhiteSpace(nombre)) return null;
-            return new UsuarioSesion
-            {
-                Id = HttpContext.Session.GetInt32("UsuarioId") ?? 0,
-                EmpleadoId = HttpContext.Session.GetInt32("EmpleadoId"),
-                NombreUsuario = nombre,
-                NombreCompleto = HttpContext.Session.GetString("NombreCompleto") ?? nombre,
-                Rol = HttpContext.Session.GetString("Rol") ?? string.Empty
-            };
-        }
-
-        private static bool PuedeVerAuditoria(string rol) => rol == "Administrador" || rol == "Gerente";
-
-        private class UsuarioSesion
-        {
-            public int Id { get; set; }
-            public int? EmpleadoId { get; set; }
-            public string NombreUsuario { get; set; } = string.Empty;
-            public string NombreCompleto { get; set; } = string.Empty;
-            public string Rol { get; set; } = string.Empty;
         }
     }
 }
