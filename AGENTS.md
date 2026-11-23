@@ -1,5 +1,10 @@
 ﻿# AGENTS.md - Contexto técnico del proyecto
 
+## Ruta del proyecto
+
+- Workspace objetivo: `C:\Users\harlo\OneDrive\Desktop\DesarrolloDeSistemas 1\PrototipoCRUD`.
+- Proyecto principal: `PrototipoCRUD.csproj` dentro de esa carpeta. Pruebas: `PrototipoCRUD.Tests\PrototipoCRUD.Tests.csproj`.
+
 ## Dominio
 
 Sistema de Gestión de **Autolavado (Car Wash)**.
@@ -95,6 +100,13 @@ Esquema `public`, normalizado (3FN). Llaves primarias/foráneas, índices y `CHE
 - `ClienteDAO.AsegurarEstructura()` y `VentaDAO.AsegurarEstructura()` aplican preparación idempotente al iniciar la app (incluye lógica CR-01 en `VentaDAO`).
 - Regla: no reintroducir columnas denormalizadas ni datos de lavandería de ropa.
 
+## Reporte de Ventas/Cobranzas (Actividad 10)
+
+- **Ruta UI:** /Reporte/VentasCobranzas (link "Reportes" en sidebar). Acceso con sesión; sin sesión redirige a login.
+- **Capa de datos:** Data/ReporteDAO.cs con consultas SQL parametrizadas Npgsql para granularidad Diaria (YYYY-MM-DD, detalle: nro venta, hora, cliente JOIN, vendedor, subtotal bruto, %/monto descuento, total cobrado/final) y Mensual (YYYY-MM + echa::date, cantidad ventas, total descuentos, total cobrado).
+- **Modelos:** Models/ReporteVentas.cs (ReporteVentaDetalle, ReporteVentaMensual, ReporteVentasGrupo<T>, ReporteVentasViewModel).
+- **Controlador/Vista:** Controllers/ReporteController.cs, Views/Reporte/VentasCobranzas.cshtml. Filtros fecha inicio/fin + granularidad Diario/Mensual; header con logo/título/rango/fecha emisión/usuario; Group Header por día o mes-año; Detail; Group Footer con subtotales (operaciones, descuentos, cobrado); Report Footer con Gran Total; mensaje UX amigable cuando no hay datos; impresión/PDF con window.print() y @media print.
+- **Errores BD:** NpgsqlException capturada en DAO, registrada con RegistroErrores y traducida/lanzada como mensaje amigable (InvalidOperationException/TraductorErroresBD), sin exponer SQL/códigos al usuario.
 ## Estado actual
 
 ### Módulos implementados y activos
@@ -120,3 +132,5 @@ Esquema `public`, normalizado (3FN). Llaves primarias/foráneas, índices y `CHE
 - `dotnet test PrototipoCRUD.Tests\PrototipoCRUD.Tests.csproj --nologo`: correcto (incluye descuento 0/15/20, >20 y <0 lanzan `ArgumentOutOfRangeException`, redondeo `AwayFromZero`, múltiples ítems, defaults y verificación hash PBKDF2 de autenticación).
 - BD `Pepokita`: script `Data/cr01_descuentos_vendedor.sql` aplicado/re-ejecutable idempotentemente; columnas/constraints/índices CR-01 y tabla `usuarios` verificados; `INSERT` con descuento 25% rechazado por `ck_ventas_descuento_rango`.
 - Pruebas HTTP (app en ejecución): GETs de Registrar/Historial/Auditoría sin sesión redirigen a login; login `cperez` válido OK; POST registrar con sesión y token válido acepta 0/15/20% y rechaza 25%/-5% con mensaje no punitivo; Auditoría accesible para rol con permiso y restringida para rol sin permiso. Pueden existir ventas adicionales creadas durante pruebas manuales/E2E.
+
+

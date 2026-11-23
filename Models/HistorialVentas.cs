@@ -1,6 +1,6 @@
-namespace PrototipoCRUD.Models
+﻿namespace PrototipoCRUD.Models
 {
-    // Una línea (producto) de una venta ya registrada
+    // Una linea (producto) de una venta ya registrada
     public class LineaHistorial
     {
         public string Producto { get; set; } = string.Empty;
@@ -9,7 +9,7 @@ namespace PrototipoCRUD.Models
         public decimal Subtotal { get; set; }
     }
 
-    // Una venta ya registrada, con su cliente y sus líneas
+    // Una venta ya registrada, con su cliente y sus lineas
     public class VentaHistorial
     {
         public int Id { get; set; }
@@ -17,7 +17,12 @@ namespace PrototipoCRUD.Models
         public int IdCliente { get; set; }
         public string Cliente { get; set; } = string.Empty;
         public string Documento { get; set; } = string.Empty;
+        public string Vendedor { get; set; } = string.Empty;
+        public decimal SubtotalBruto { get; set; }
+        public decimal PorcentajeDescuento { get; set; }
+        public decimal MontoDescuento { get; set; }
         public decimal Total { get; set; }
+        public decimal TotalFinal { get => Total; set => Total = value; }
         public List<LineaHistorial> Lineas { get; set; } = new();
     }
 

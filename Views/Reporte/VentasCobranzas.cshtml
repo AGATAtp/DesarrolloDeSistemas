@@ -1,0 +1,185 @@
+﻿@model PrototipoCRUD.Models.ReporteVentasViewModel
+@using System.Globalization
+@{
+    ViewData["Title"] = "Reporte de ventas y cobranzas";
+    var inv = CultureInfo.InvariantCulture;
+    var usuarioGenera = ViewBag.UsuarioGenera as string ?? "Usuario";
+    var fechaEmision = ViewBag.FechaEmision as DateTime? ?? DateTime.Now;
+}
+
+<div class="report-screen">
+    <header class="page-header report-header no-print">
+        <div>
+            <p class="eyebrow">Autolavado</p>
+            <h1>Reporte de ventas y cobranzas</h1>
+            <p class="report-subtitle">Salida formal diaria o mensual con subtotales por grupo y gran total del periodo.</p>
+        </div>
+        <div class="report-actions">
+            @if (Model.Consultado && Model.TieneDatos)
+            {
+                <button type="button" class="btn-primary" onclick="window.print()">Imprimir / Guardar PDF</button>
+            }
+        </div>
+    </header>
+
+    <section class="card no-print report-filters">
+        <form method="get" asp-action="VentasCobranzas" class="report-filter-form">
+            <div class="filter-grid">
+                <label>
+                    Fecha inicio
+                    <input type="date" name="fechaInicio" value="@Model.FechaInicio.ToString("yyyy-MM-dd")" required />
+                </label>
+                <label>
+                    Fecha fin
+                    <input type="date" name="fechaFin" value="@Model.FechaFin.ToString("yyyy-MM-dd")" required />
+                </label>
+                <label>
+                    Granularidad
+                    <select name="tipoGranularidad">
+                        <option value="Diario" selected="@(Model.TipoGranularidad == "Diario")">Diario (operativo)</option>
+                        <option value="Mensual" selected="@(Model.TipoGranularidad == "Mensual")">Mensual (gerencial)</option>
+                    </select>
+                </label>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="btn-primary">Generar reporte</button>
+            </div>
+        </form>
+    </section>
+
+    @if (!string.IsNullOrWhiteSpace(Model.Error))
+    {
+        <p class="alert" role="alert">@Model.Error</p>
+    }
+
+    @if (Model.Consultado)
+    {
+        <section class="report-paper">
+            <div class="report-doc-header">
+                <div>
+                    <p class="report-brand">Autolavado</p>
+                    <h2>Reporte de ventas y cobranzas</h2>
+                    <p class="report-doc-meta">Rango: @Model.FechaInicio.ToString("dd/MM/yyyy") - @Model.FechaFin.ToString("dd/MM/yyyy")</p>
+                    <p class="report-doc-meta">Granularidad: @Model.TipoGranularidad</p>
+                </div>
+                <div class="report-doc-right">
+                    <p><strong>Fecha de emision:</strong> @fechaEmision.ToString("dd/MM/yyyy HH:mm")</p>
+                    <p><strong>Usuario:</strong> @usuarioGenera</p>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(Model.MensajeSinDatos))
+            {
+                <div class="report-empty" role="status">
+                    <p>@Model.MensajeSinDatos</p>
+                </div>
+            }
+            else if (Model.TipoGranularidad == "Mensual")
+            {
+                @foreach (var grupo in Model.GruposMensuales)
+                {
+                    <div class="report-group">
+                        <div class="report-group-header">
+                            <span>Periodo: @grupo.Titulo</span>
+                            <span>@grupo.Clave</span>
+                        </div>
+                        <table class="report-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha dia</th>
+                                    <th class="num">Cantidad ventas</th>
+                                    <th class="num">Total descuentos (Bs.)</th>
+                                    <th class="num">Total cobrado (Bs.)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var item in grupo.Items)
+                            {
+                                <tr>
+                                    <td>@item.FechaDia.ToString("dd/MM/yyyy")</td>
+                                    <td class="num">@item.CantidadVentas</td>
+                                    <td class="num">@item.TotalDescuentos.ToString("N2", inv)</td>
+                                    <td class="num">@item.TotalCobrado.ToString("N2", inv)</td>
+                                </tr>
+                            }
+                            </tbody>
+                            <tfoot>
+                                <tr class="report-subtotal">
+                                    <td>Subtotal @grupo.Titulo</td>
+                                    <td class="num">@grupo.CantidadOperaciones</td>
+                                    <td class="num">@grupo.TotalDescuentos.ToString("N2", inv)</td>
+                                    <td class="num">@grupo.TotalCobrado.ToString("N2", inv)</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                }
+            }
+            else
+            {
+                @foreach (var grupo in Model.GruposDiarios)
+                {
+                    <div class="report-group">
+                        <div class="report-group-header">
+                            <span>Dia: @grupo.Titulo</span>
+                            <span>@grupo.Clave</span>
+                        </div>
+                        <table class="report-table">
+                            <thead>
+                                <tr>
+                                    <th>Nro venta</th>
+                                    <th>Hora</th>
+                                    <th>Cliente</th>
+                                    <th>Vendedor</th>
+                                    <th class="num">Subtotal bruto</th>
+                                    <th class="num">Descuento %</th>
+                                    <th class="num">Monto desc.</th>
+                                    <th class="num">Total cobrado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var item in grupo.Items)
+                            {
+                                <tr>
+                                    <td>@item.NroVenta</td>
+                                    <td>@item.Hora</td>
+                                    <td>@item.Cliente</td>
+                                    <td>@item.Vendedor</td>
+                                    <td class="num">@item.SubtotalBruto.ToString("N2", inv)</td>
+                                    <td class="num">@item.PorcentajeDescuento.ToString("N2", inv)%</td>
+                                    <td class="num">@item.MontoDescuento.ToString("N2", inv)</td>
+                                    <td class="num">@item.TotalFinal.ToString("N2", inv)</td>
+                                </tr>
+                            }
+                            </tbody>
+                            <tfoot>
+                                <tr class="report-subtotal">
+                                    <td colspan="4">Subtotal @grupo.Titulo (@grupo.CantidadOperaciones operaciones)</td>
+                                    <td class="num">-</td>
+                                    <td class="num">-</td>
+                                    <td class="num">@grupo.TotalDescuentos.ToString("N2", inv)</td>
+                                    <td class="num">@grupo.TotalCobrado.ToString("N2", inv)</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                }
+            }
+
+            @if (Model.TieneDatos)
+            {
+                <div class="report-grand-total">
+                    <div><strong>Gran total del periodo</strong></div>
+                    <div>Operaciones: <strong>@Model.GranTotalOperaciones</strong></div>
+                    <div>Total descuentos: <strong>Bs. @Model.GranTotalDescuentos.ToString("N2", inv)</strong></div>
+                    <div>Total cobrado: <strong>Bs. @Model.GranTotalCobrado.ToString("N2", inv)</strong></div>
+                </div>
+            }
+
+            <div class="report-footer">
+                <span>Reporte generado por @usuarioGenera</span>
+                <span class="page-number"></span>
+            </div>
+        </section>
+    }
+</div>

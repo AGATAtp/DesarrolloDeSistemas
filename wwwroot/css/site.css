@@ -700,3 +700,41 @@ tfoot td {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* Reporte Ventas/Cobranzas - Actividad 10 */
+.report-subtitle{margin:.35rem 0 0;color:#5a6572;font-size:.95rem}
+.report-filters{margin-bottom:1rem}
+.report-filter-form .filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.75rem}
+.report-filter-form label{display:flex;flex-direction:column;gap:.35rem;font-size:.9rem;color:#334}
+.report-filter-form input,.report-filter-form select{padding:.55rem .65rem;border:1px solid #cfd8e3;border-radius:8px}
+.filter-actions{margin-top:.75rem}
+.report-paper{background:#fff;border:1px solid #dbe3ec;border-radius:12px;padding:1.25rem;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.report-doc-header{display:flex;justify-content:space-between;gap:1rem;border-bottom:2px solid #1f2937;padding-bottom:.75rem;margin-bottom:1rem}
+.report-brand{margin:0;font-weight:700;color:#0f766e;text-transform:uppercase;letter-spacing:.04em;font-size:.8rem}
+.report-doc-header h2{margin:.1rem 0 .35rem;font-size:1.4rem}
+.report-doc-meta,.report-doc-right p{margin:.1rem 0;color:#374151;font-size:.92rem}
+.report-doc-right{text-align:right}
+.report-group{margin-bottom:1rem;break-inside:avoid}
+.report-group-header{display:flex;justify-content:space-between;gap:1rem;background:#eef6f5;color:#134e4a;padding:.5rem .75rem;font-weight:600;border:1px solid #cfe3e0;border-bottom:0;border-radius:8px 8px 0 0}
+.report-table{width:100%;border-collapse:collapse;font-size:.92rem}
+.report-table th,.report-table td{padding:.45rem .5rem;border:1px solid #dbe3ec;vertical-align:top}
+.report-table th{background:#f8fafc;text-align:left;font-weight:600;color:#334155}
+.report-table .num{text-align:right;white-space:nowrap}
+.report-subtotal td{background:#f0fdf9;font-weight:700;color:#134e4a}
+.report-grand-total{display:flex;flex-wrap:wrap;gap:.75rem 1.5rem;margin-top:1rem;padding:.9rem 1rem;background:#134e4a;color:#fff;border-radius:10px}
+.report-grand-total strong{color:#fff}
+.report-footer{display:flex;justify-content:space-between;margin-top:1rem;padding-top:.75rem;border-top:1px solid #dbe3ec;color:#475569;font-size:.85rem}
+.report-empty{padding:1rem;border:1px dashed #cbd5e1;border-radius:10px;background:#f8fafc;color:#334155}
+.page-number::after{content:"Pagina de impresion"}
+
+@media print{
+  body{background:#fff!important}
+  .sidebar,.no-print,.toast,button,.nav-link,.logout-form{display:none!important}
+  .app{display:block!important}
+  .content,.page{margin:0!important;padding:0!important;max-width:none!important;width:100%!important}
+  .report-paper{border:0;box-shadow:none;padding:0}
+  .report-group{break-inside:avoid-page}
+  .report-table th{background:#f3f4f6!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .report-group-header,.report-subtotal td,.report-grand-total{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  @page{size:A4;margin:12mm}
+}

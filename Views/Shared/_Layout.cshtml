@@ -1,37 +1,60 @@
+﻿@using Microsoft.AspNetCore.Http
 @{
     var controlador = ViewContext.RouteData.Values["controller"]?.ToString();
     var accion = ViewContext.RouteData.Values["action"]?.ToString();
+    var usuario = Context.Session.GetString("UsuarioNombre");
+    var nombreCompleto = Context.Session.GetString("NombreCompleto") ?? usuario;
+    var rol = Context.Session.GetString("Rol") ?? string.Empty;
+    bool puedeAuditoria = rol == "Administrador" || rol == "Gerente";
 }
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>@ViewData["Title"] – Autolavado</title>
+    <title>@ViewData["Title"] - Autolavado</title>
     <link rel="icon" href="~/favicon.ico">
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true">
 </head>
 <body>
     <div class="app">
-        <!-- Menú fijo: ~20% de la pantalla -->
         <aside class="sidebar">
             <p class="brand"><small>Sistema de</small>Autolavado</p>
 
+            @if (!string.IsNullOrWhiteSpace(usuario))
+            {
+                <div class="user-box">
+                    <div class="user-name">@nombreCompleto</div>
+                    <div class="user-role">@rol</div>
+                    <form asp-controller="Account" asp-action="Logout" method="post" class="logout-form">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="link-button">Cerrar sesi�n</button>
+                    </form>
+                </div>
+            }
+            else
+            {
+                <a class="nav-link @(controlador == "Account" ? "active" : "")" asp-controller="Account" asp-action="Login">Iniciar sesi�n</a>
+            }
+
             <a class="nav-link @(controlador == "Home" ? "active" : "")" asp-controller="Home" asp-action="Index">Panel principal</a>
             <a class="nav-link @(controlador == "Cliente" ? "active" : "")" asp-controller="Cliente" asp-action="Index">Clientes</a>
-            <a class="nav-link @(controlador == "Venta" && accion != "Historial" ? "active" : "")" asp-controller="Venta" asp-action="Registrar">Ventas</a>
+            <a class="nav-link @(controlador == "Venta" && accion == "Registrar" ? "active" : "")" asp-controller="Venta" asp-action="Registrar">Registrar venta</a>
             <a class="nav-link @(controlador == "Venta" && accion == "Historial" ? "active" : "")" asp-controller="Venta" asp-action="Historial">Historial</a>
+            @if (puedeAuditoria)
+            {
+                <a class="nav-link @(controlador == "Venta" && accion == "Auditoria" ? "active" : "")" asp-controller="Venta" asp-action="Auditoria">Auditor�a</a>
+            }
+            <a class="nav-link @(controlador == "Reporte" ? "active" : "")" asp-controller="Reporte" asp-action="VentasCobranzas">Reportes</a>
 
-            <span class="nav-link nav-link--soon">Vehículos <small>Pronto</small></span>
+            <span class="nav-link nav-link--soon">Veh�culos <small>Pronto</small></span>
             <span class="nav-link nav-link--soon">Servicios <small>Pronto</small></span>
-            <span class="nav-link nav-link--soon">Órdenes <small>Pronto</small></span>
+            <span class="nav-link nav-link--soon">�rdenes <small>Pronto</small></span>
             <span class="nav-link nav-link--soon">Inventario <small>Pronto</small></span>
             <span class="nav-link nav-link--soon">Pagos <small>Pronto</small></span>
-            <span class="nav-link nav-link--soon">Reportes <small>Pronto</small></span>
             <span class="nav-link nav-link--soon">Empleados y roles <small>Pronto</small></span>
         </aside>
 
-        <!-- Área de trabajo: ~80% -->
         <main class="content">
             <div class="page">
                 @RenderBody()

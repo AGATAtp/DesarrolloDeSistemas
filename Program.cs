@@ -1,15 +1,24 @@
-using PrototipoCRUD.Data;
+﻿using PrototipoCRUD.Data;
+using PrototipoCRUD.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromHours(8);
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+});
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ClienteDAO>();
 builder.Services.AddScoped<VentaDAO>();
+builder.Services.AddScoped<UsuarioDAO>();
+builder.Services.AddScoped<ReporteDAO>();
 
 var app = builder.Build();
 
-// Crea la tabla "clientes" (y las columnas nuevas) si aún no existen.
-// Si la base de datos no responde, la aplicación igual abre y muestra un aviso amable.
 using (var scope = app.Services.CreateScope())
 {
     try
@@ -19,14 +28,15 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
+        RegistroErrores.Registrar(ex, "Inicio: preparar la base de datos");
         app.Logger.LogError(ex,
-            "No se pudo preparar la base de datos. Revisa que PostgreSQL esté encendido y la cadena de conexión 'Pepokita' en appsettings.json.");
+            "No se pudo preparar la base de datos. Revisa que PostgreSQL estǸ encendido y la cadena de conexi��n 'Pepokita' en appsettings.json.");
     }
 }
 
+app.UseExceptionHandler("/Home/Error");
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
 }
 
@@ -35,7 +45,7 @@ if (app.Urls.Any(url => url.StartsWith("https://", StringComparison.OrdinalIgnor
     app.UseHttpsRedirection();
 }
 app.UseRouting();
-
+app.UseSession();
 app.UseAuthorization();
 
 app.MapStaticAssets();
