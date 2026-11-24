@@ -30,7 +30,7 @@ using (var scope = app.Services.CreateScope())
     {
         RegistroErrores.Registrar(ex, "Inicio: preparar la base de datos");
         app.Logger.LogError(ex,
-            "No se pudo preparar la base de datos. Revisa que PostgreSQL estǸ encendido y la cadena de conexi��n 'Pepokita' en appsettings.json.");
+            "No se pudo preparar la base de datos. Revisa que PostgreSQL esté encendido y la cadena de conexión 'Pepokita' en appsettings.json.");
     }
 }
 

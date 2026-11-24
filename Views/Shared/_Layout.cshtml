@@ -28,13 +28,13 @@
                     <div class="user-role">@rol</div>
                     <form asp-controller="Account" asp-action="Logout" method="post" class="logout-form">
                         @Html.AntiForgeryToken()
-                        <button type="submit" class="link-button">Cerrar sesi�n</button>
+                        <button type="submit" class="link-button">Cerrar sesión</button>
                     </form>
                 </div>
             }
             else
             {
-                <a class="nav-link @(controlador == "Account" ? "active" : "")" asp-controller="Account" asp-action="Login">Iniciar sesi�n</a>
+                <a class="nav-link @(controlador == "Account" ? "active" : "")" asp-controller="Account" asp-action="Login">Iniciar sesión</a>
             }
 
             <a class="nav-link @(controlador == "Home" ? "active" : "")" asp-controller="Home" asp-action="Index">Panel principal</a>
@@ -43,13 +43,13 @@
             <a class="nav-link @(controlador == "Venta" && accion == "Historial" ? "active" : "")" asp-controller="Venta" asp-action="Historial">Historial</a>
             @if (puedeAuditoria)
             {
-                <a class="nav-link @(controlador == "Venta" && accion == "Auditoria" ? "active" : "")" asp-controller="Venta" asp-action="Auditoria">Auditor�a</a>
+                <a class="nav-link @(controlador == "Venta" && accion == "Auditoria" ? "active" : "")" asp-controller="Venta" asp-action="Auditoria">Auditoría</a>
             }
             <a class="nav-link @(controlador == "Reporte" ? "active" : "")" asp-controller="Reporte" asp-action="VentasCobranzas">Reportes</a>
 
-            <span class="nav-link nav-link--soon">Veh�culos <small>Pronto</small></span>
+            <span class="nav-link nav-link--soon">Vehículos <small>Pronto</small></span>
             <span class="nav-link nav-link--soon">Servicios <small>Pronto</small></span>
-            <span class="nav-link nav-link--soon">�rdenes <small>Pronto</small></span>
+            <span class="nav-link nav-link--soon">Órdenes <small>Pronto</small></span>
             <span class="nav-link nav-link--soon">Inventario <small>Pronto</small></span>
             <span class="nav-link nav-link--soon">Pagos <small>Pronto</small></span>
             <span class="nav-link nav-link--soon">Empleados y roles <small>Pronto</small></span>
