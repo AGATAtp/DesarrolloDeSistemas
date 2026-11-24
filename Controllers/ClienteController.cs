@@ -1,17 +1,15 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using PrototipoCRUD.Data;
 using PrototipoCRUD.Models;
+using PrototipoCRUD.Services;
 
 namespace PrototipoCRUD.Controllers
 {
     public class ClienteController : Controller
     {
         private static readonly string[] TiposValidos = { "Particular", "Frecuente", "Empresa" };
-        private const string MensajeBD =
-            "No pudimos conectar con la base de datos. Revisa que PostgreSQL esté encendido y que la cadena de conexión de appsettings.json sea correcta.";
-
         private readonly ClienteDAO _dao;
 
         public ClienteController(ClienteDAO dao)
@@ -27,9 +25,10 @@ namespace PrototipoCRUD.Controllers
             {
                 lista = _dao.ObtenerTodos();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                ViewBag.ErrorBD = MensajeBD;
+                // Mensaje ya traducido (o genérico + log técnico); nunca el error crudo
+                ViewBag.ErrorBD = MensajesUX.Para(ex, "ClienteController.Index");
             }
             return View(lista);
         }
@@ -37,39 +36,40 @@ namespace PrototipoCRUD.Controllers
         // CREATE / UPDATE: lo llama el diálogo (fetch) y responde JSON
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult Guardar([FromForm] ClienteForm form)
+        public IActionResult Guardar([FromForm] ClienteForm? form)
         {
-            Dictionary<string, string> errores;
-            DateOnly fecha;
-            try
+            // Cláusula de guarda: formulario vacío o ilegible
+            if (form == null)
             {
-                errores = Validar(form, out fecha);
+                return Json(new
+                {
+                    ok = false,
+                    errores = new Dictionary<string, string>(),
+                    general = "No recibimos los datos del cliente. Completa el formulario e inténtalo de nuevo."
+                });
             }
-            catch (Exception)
-            {
-                return Json(new { ok = false, errores = new Dictionary<string, string>(), general = MensajeBD });
-            }
-
-            if (errores.Count > 0)
-            {
-                return Json(new { ok = false, errores });
-            }
-
-            var cliente = new Cliente
-            {
-                Id = form.Id,
-                Nombre = form.Nombre!.Trim(),
-                Apellido = form.Apellido!.Trim(),
-                Documento = form.Documento!.Trim(),
-                Telefono = form.Telefono!.Trim(),
-                Correo = form.Correo?.Trim(),
-                Direccion = form.Direccion?.Trim(),
-                TipoCliente = form.TipoCliente!,
-                FechaRegistro = fecha
-            };
 
             try
             {
+                var errores = Validar(form, out DateOnly fecha);
+                if (errores.Count > 0)
+                {
+                    return Json(new { ok = false, errores });
+                }
+
+                var cliente = new Cliente
+                {
+                    Id = form.Id,
+                    Nombre = form.Nombre!.Trim(),
+                    Apellido = form.Apellido!.Trim(),
+                    Documento = form.Documento!.Trim(),
+                    Telefono = form.Telefono!.Trim(),
+                    Correo = form.Correo?.Trim(),
+                    Direccion = form.Direccion?.Trim(),
+                    TipoCliente = form.TipoCliente!,
+                    FechaRegistro = fecha
+                };
+
                 if (cliente.Id == 0)
                 {
                     _dao.Insertar(cliente);
@@ -80,13 +80,21 @@ namespace PrototipoCRUD.Controllers
                     _dao.Actualizar(cliente);
                     TempData["Mensaje"] = $"✔ Los datos de «{cliente.NombreCompleto}» se actualizaron.";
                 }
+                return Json(new { ok = true });
             }
-            catch (Exception)
+            catch (ValidacionNegocioException exValidacion)   // datos incompletos o inválidos
             {
-                return Json(new { ok = false, errores = new Dictionary<string, string>(), general = MensajeBD });
+                return RespuestaError("Faltan datos por completar", exValidacion.Message);
             }
-
-            return Json(new { ok = true });
+            catch (ErrorOperacionException exNegocio)         // duplicado, BD caída, etc. (ya traducido)
+            {
+                return RespuestaError("No pudimos completar el guardado", exNegocio.Message);
+            }
+            catch (Exception ex)                              // red de seguridad final
+            {
+                RegistroErrores.Registrar(ex, "ClienteController.Guardar");
+                return RespuestaError("Inconveniente inesperado", TraductorErroresBD.MensajeInesperado);
+            }
         }
 
         // DELETE: baja lógica (la confirmación se pide antes, en el diálogo)
@@ -96,15 +104,28 @@ namespace PrototipoCRUD.Controllers
         {
             try
             {
-                _dao.Eliminar(id);
+                _dao.Eliminar(id);   // la guarda (id > 0) está dentro del DAO
                 TempData["Mensaje"] = "El cliente fue dado de baja.";
             }
-            catch (Exception)
+            catch (ValidacionNegocioException exValidacion)
             {
-                TempData["Error"] = MensajeBD;
+                TempData["Error"] = exValidacion.Message;
+            }
+            catch (ErrorOperacionException exNegocio)
+            {
+                TempData["Error"] = exNegocio.Message;
+            }
+            catch (Exception ex)
+            {
+                RegistroErrores.Registrar(ex, "ClienteController.DarDeBaja");
+                TempData["Error"] = TraductorErroresBD.MensajeInesperado;
             }
             return RedirectToAction(nameof(Index));
         }
+
+        // Respuesta JSON uniforme para el diálogo: el mensaje ya es de negocio, sin jerga técnica
+        private JsonResult RespuestaError(string titulo, string mensaje) =>
+            Json(new { ok = false, errores = new Dictionary<string, string>(), titulo, general = mensaje });
 
         // ---------- Validación: mismos mensajes amables que el diálogo en el navegador ----------
         private Dictionary<string, string> Validar(ClienteForm f, out DateOnly fecha)

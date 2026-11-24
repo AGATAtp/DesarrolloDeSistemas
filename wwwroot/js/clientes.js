@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
   const $ = (selector) => document.querySelector(selector);
   const dialog = $('#dialog');
   const form = $('#client-form');
@@ -81,6 +81,16 @@
     summary.textContent = total === 1
       ? 'Casi listo: revisa el campo marcado para poder guardar.'
       : `Casi listo: revisa los ${total} campos marcados para poder guardar.`;
+  }
+
+  /* ---------- Aviso breve y orientador (sin jerga técnica) ---------- */
+  function showNotice(message) {
+    const toast = document.createElement('div');
+    toast.className = 'toast toast--error';
+    toast.setAttribute('role', 'alert');
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
   }
 
   /* ---------- Abrir y cerrar el diálogo ---------- */
@@ -170,7 +180,12 @@
         body: new FormData(form),
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
       });
-      if (!response.ok) throw new Error('http');
+      if (!response.ok) {
+        summary.textContent = response.status === 400
+          ? 'No pudimos leer los datos del formulario. Revisa los campos e inténtalo de nuevo.'
+          : 'Ocurrió un problema interno al guardar. Tus datos no se modificaron; inténtalo de nuevo o contacta a soporte.';
+        return;
+      }
       const result = await response.json();
 
       if (result.ok) {
@@ -189,7 +204,8 @@
       } else {
         summary.textContent = result.general || 'No pudimos guardar los datos. Inténtalo de nuevo en un momento.';
       }
-    } catch {
+    } catch (error) {
+      console.error('Error al guardar el cliente:', error);
       summary.textContent = 'No pudimos guardar los datos en este momento. Revisa tu conexión e inténtalo de nuevo.';
     } finally {
       submitButton.disabled = false;
@@ -261,10 +277,17 @@
 
   document.addEventListener('click', (event) => {
     const edit = event.target.closest('.js-edit');
-    if (edit) { openDialog(edit.dataset); return; }
+    if (edit) {
+      if (!edit.dataset.id) { showNotice('Selecciona un cliente de la lista para editarlo.'); return; }
+      openDialog(edit.dataset);
+      return;
+    }
 
     const remove = event.target.closest('.js-baja');
-    if (remove) openBaja(remove.dataset.id, remove.dataset.nombre);
+    if (remove) {
+      if (!remove.dataset.id) { showNotice('Selecciona un cliente de la lista para darlo de baja.'); return; }
+      openBaja(remove.dataset.id, remove.dataset.nombre);
+    }
   });
 
   // Un error desaparece apenas el usuario empieza a corregir ese campo

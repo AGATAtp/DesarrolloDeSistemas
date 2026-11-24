@@ -114,7 +114,7 @@ Esquema `public`, normalizado (3FN). Llaves primarias/foráneas, índices y `CHE
 - **Clientes:** `Controllers/ClienteController.cs`, `Views/Cliente/Index.cshtml`, `wwwroot/js/clientes.js`. CRUD/flujo existente.
 - **Autenticación (CR-01):** `Controllers/AccountController.cs`, `Views/Account/Login.cshtml`, `Data/UsuarioDAO.cs`, `Services/ServicioAutenticacion.cs`, `Models/Usuario.cs`; sesión configurada en `Program.cs`.
 - **Ventas (CR-01):**
-  - `Controllers/VentaController.cs`, `Data/VentaDAO.cs`, `Models/Venta.cs`, `Models/VentaRequest.cs`, `Models/VentaHistorial.cs`, `Models/ResumenDescuentoVendedor.cs`, `Models/DetalleVenta.cs`
+  - `Controllers/VentaController.cs`, `Data/VentaDAO.cs`, `Models/Venta.cs`, `Models/VentaRequest.cs`, `Models/HistorialVentas.cs` (`VentaHistorial`), `Models/ResumenDescuentoVendedor.cs`, `Models/DetalleVenta.cs`
   - Vistas: `Views/Venta/Registrar.cshtml`, `Views/Venta/Historial.cshtml`, `Views/Venta/Auditoria.cshtml`
   - JS/CSS: `wwwroot/js/ventas.js`, `wwwroot/css/site.css`
   - Registro transaccional (cabecera + detalle en misma transacción), precios desde BD, antiforgery en POST JSON (`RequestVerificationToken`), vendedor tomado de sesión (solo lectura en UI), descuento 0-20% con cálculo en dominio (`AplicarDescuento`, `Math.Round(...,2,AwayFromZero)`), resumen en vivo (Subtotal bruto, Descuento Bs., Total final).
@@ -126,11 +126,10 @@ Esquema `public`, normalizado (3FN). Llaves primarias/foráneas, índices y `CHE
 
 - Implementar **Órdenes de Servicio** y **Pagos** (tablas/datos pueden existir; no hay controladores/vistas completas). Seguir patrón DAO Npgsql + controlador + Razor + JS puro.
 
-### Verificación reciente
+### Verificación reciente (Actividad 10 - revisión exhaustiva)
 
-- `dotnet build --nologo -v minimal` (en `PrototipoCRUD/`): 0 advertencias, 0 errores.
-- `dotnet test PrototipoCRUD.Tests\PrototipoCRUD.Tests.csproj --nologo`: correcto (incluye descuento 0/15/20, >20 y <0 lanzan `ArgumentOutOfRangeException`, redondeo `AwayFromZero`, múltiples ítems, defaults y verificación hash PBKDF2 de autenticación).
-- BD `Pepokita`: script `Data/cr01_descuentos_vendedor.sql` aplicado/re-ejecutable idempotentemente; columnas/constraints/índices CR-01 y tabla `usuarios` verificados; `INSERT` con descuento 25% rechazado por `ck_ventas_descuento_rango`.
-- Pruebas HTTP (app en ejecución): GETs de Registrar/Historial/Auditoría sin sesión redirigen a login; login `cperez` válido OK; POST registrar con sesión y token válido acepta 0/15/20% y rechaza 25%/-5% con mensaje no punitivo; Auditoría accesible para rol con permiso y restringida para rol sin permiso. Pueden existir ventas adicionales creadas durante pruebas manuales/E2E.
-
-
+- **Bloque 1 (Dominio/xUnit):** `dotnet build --nologo -v minimal` => 0 advertencias, 0 errores. `dotnet test PrototipoCRUD.Tests\PrototipoCRUD.Tests.csproj --nologo` => 11/11 OK. Se ajustó `VentaDescuentoTests.Venta_PorDefecto_VendedorYDescuentoIniciales` al default CR-01 real (`Vendedor="Sin registrar"`). Cobertura xUnit actual: descuentos/redondeo/defaults Venta + hash/verificación PBKDF2 autenticación; no hay pruebas unitarias dedicadas a `HistorialVentas` ViewModel ni a `ReporteDAO` (requieren integración BD/mock).
+- **Bloque 2 (BD PostgreSQL 3FN/esquema):** BD activa `Pepokita` verificada. `ventas` tiene FKs (`id_cliente->clientes`, `id_vendedor->empleados`), checks CR-01 (`ck_ventas_descuento_rango`, `ck_ventas_montos_coherentes`, `ck_ventas_vendedor`), NOT NULLs e índices (`idx_ventas_vendedor`, `idx_ventas_id_vendedor`, fecha/cliente). `detalle_ventas` con FKs a `ventas/productos` y checks. `usuarios/empleados/roles/clientes` consistentes con 3FN. Consulta de coherencia de montos en `ventas`: 0 filas inconsistentes.
+- **Bloque 3 (ReporteDAO/VentaDAO):** SQL Diario/Mensual ejecutado contra BD real; totales coinciden con `SELECT COUNT/SUM(monto_descuento)/SUM(total_final)` del mismo rango (Nov 2026: 13 ops, desc 10.50, cobrado 1764.50). Rango sin datos 2020 => 0 filas; la vista muestra mensaje UX amigable. `NpgsqlException` capturada en `ReporteDAO.EjecutarConsulta` y traducida/registrada con `RegistroErrores`/`TraductorErroresBD`/`InvalidOperationException` sin exponer SQL.
+- **Bloque 4 (Controladores/rutas/sesión/vista):** app levantada temporalmente en `http://127.0.0.1:5299`. `/Reporte/VentasCobranzas` sin sesión => 302 `/Account/Login?returnUrl=%2FReporte%2FVentasCobranzas`. Login `cperez/Vendedor123!` OK. Diario/Mensual renderizan header, filtros, Group Header día/mes, Detail, Group Footer subtotales, Report Footer gran total y datos esperados; rango vacío muestra mensaje amigable. CSS incluye `@media print` y botón `window.print()`.
+- **Hallazgos/correcciones:** restaurados `Venta.cs`/`VentaRequest.cs` para compatibilidad CR-01 (rebase los había dejado en versión antigua sin descuento/vendedor), lo que corrigió 13 errores de compilación; test de default vendedor ajustado. No se detectaron errores de esquema BD ni de totales del reporte.

@@ -1,9 +1,10 @@
-namespace PrototipoCRUD.Models
+﻿namespace PrototipoCRUD.Models
 {
-    // Lo que envía la pantalla al confirmar: cliente + ítems (el precio y el total los calcula el servidor)
+    // Lo que envía la pantalla al confirmar: cliente + items (el precio y el total los calcula el servidor)
     public class VentaRequest
     {
         public int IdCliente { get; set; }               // 0 = Consumidor Final
+        public decimal PorcentajeDescuento { get; set; }
         public List<ItemRequest>? Detalles { get; set; }
     }
 

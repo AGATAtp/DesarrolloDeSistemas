@@ -1,7 +1,9 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using PrototipoCRUD.Data;
 using PrototipoCRUD.Models;
+using PrototipoCRUD.Services;
 
 namespace PrototipoCRUD.Controllers;
 
@@ -23,9 +25,9 @@ public class HomeController : Controller
             ViewBag.Activos = activos;
             ViewBag.NuevosMes = nuevosMes;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            ViewBag.ErrorBD = "No pudimos conectar con la base de datos. Revisa que PostgreSQL esté encendido y que la cadena de conexión de appsettings.json sea correcta.";
+            ViewBag.ErrorBD = MensajesUX.Para(ex, "HomeController.Index");
             ViewBag.Activos = 0;
             ViewBag.NuevosMes = 0;
         }
@@ -35,6 +37,13 @@ public class HomeController : Controller
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     public IActionResult Error()
     {
+        // Cualquier excepción no controlada llega aquí: se guarda el detalle técnico en el log
+        // y el usuario solo ve una pantalla amigable (nunca el StackTrace).
+        var detalle = HttpContext.Features.Get<IExceptionHandlerPathFeature>();
+        if (detalle?.Error != null)
+        {
+            RegistroErrores.Registrar(detalle.Error, $"Excepción no controlada en {detalle.Path}");
+        }
         return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
     }
 }

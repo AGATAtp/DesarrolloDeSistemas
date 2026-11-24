@@ -91,10 +91,10 @@ namespace PrototipoCRUD.Tests
         }
 
         [Fact]
-        public void Venta_PorDefecto_VendedorVacioYDescuentoCero()
+        public void Venta_PorDefecto_VendedorYDescuentoIniciales()
         {
             var venta = new Venta();
-            Assert.Equal(string.Empty, venta.Vendedor);
+            Assert.Equal("Sin registrar", venta.Vendedor);
             Assert.Equal(0m, venta.PorcentajeDescuento);
             Assert.Empty(venta.Detalles);
         }

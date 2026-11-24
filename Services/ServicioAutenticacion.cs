@@ -60,8 +60,14 @@ namespace PrototipoCRUD.Services
                     return CryptographicOperations.FixedTimeEquals(calculado, hash);
                 }
             }
-            catch
+            catch (FormatException exFormato)   // hash almacenado con formato Base64 dañado
             {
+                RegistroErrores.Registrar(exFormato, "Autenticación: hash de contraseña con formato inválido");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                RegistroErrores.Registrar(ex, "Autenticación: verificación de contraseña");
                 return false;
             }
             return false;

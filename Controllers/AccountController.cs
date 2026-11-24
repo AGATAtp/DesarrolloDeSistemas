@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using PrototipoCRUD.Data;
+using PrototipoCRUD.Models;
 using PrototipoCRUD.Services;
 
 namespace PrototipoCRUD.Controllers
@@ -26,8 +27,44 @@ namespace PrototipoCRUD.Controllers
         [ValidateAntiForgeryToken]
         public IActionResult Login(string nombreUsuario, string contrasena, string? returnUrl = null)
         {
-            var servicio = new ServicioAutenticacion(_usuarioDao);
-            var (resultado, usuario) = servicio.Autenticar(nombreUsuario?.Trim() ?? string.Empty, contrasena ?? string.Empty);
+            // Cláusula de guarda: campos vacíos
+            if (string.IsNullOrWhiteSpace(nombreUsuario) || string.IsNullOrEmpty(contrasena))
+            {
+                ViewBag.Error = "Escribe tu usuario y tu contraseña para ingresar.";
+                ViewBag.ReturnUrl = returnUrl;
+                ViewBag.NombreUsuario = nombreUsuario;
+                return View();
+            }
+
+            ResultadoLogin resultado;
+            Usuario? usuario;
+            try
+            {
+                var servicio = new ServicioAutenticacion(_usuarioDao);
+                (resultado, usuario) = servicio.Autenticar(nombreUsuario.Trim(), contrasena);
+            }
+            catch (ValidacionNegocioException exValidacion)
+            {
+                ViewBag.Error = exValidacion.Message;
+                ViewBag.ReturnUrl = returnUrl;
+                ViewBag.NombreUsuario = nombreUsuario;
+                return View();
+            }
+            catch (ErrorOperacionException exNegocio)   // BD apagada, etc. (ya traducido)
+            {
+                ViewBag.Error = exNegocio.Message;
+                ViewBag.ReturnUrl = returnUrl;
+                ViewBag.NombreUsuario = nombreUsuario;
+                return View();
+            }
+            catch (Exception ex)
+            {
+                RegistroErrores.Registrar(ex, "AccountController.Login");
+                ViewBag.Error = TraductorErroresBD.MensajeInesperado;
+                ViewBag.ReturnUrl = returnUrl;
+                ViewBag.NombreUsuario = nombreUsuario;
+                return View();
+            }
 
             switch (resultado)
             {

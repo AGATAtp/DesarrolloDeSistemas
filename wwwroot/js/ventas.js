@@ -1,32 +1,72 @@
-(() => {
+﻿(() => {
   const $ = (selector) => document.querySelector(selector);
   const form = $('#venta-form');
+  if (!form) return;
+
   const selProducto = $('#item-producto');
   const inpCantidad = $('#item-cantidad');
   const selCliente = $('#venta-cliente');
+  const inpDescuento = $('#venta-descuento');
   const cuerpo = $('#detalle-body');
   const vacio = $('#detalle-vacio');
   const lblTotal = $('#lblTotal');
   const lblTotalTabla = $('#lblTotalTabla');
+  const lblSubtotal = $('#lblSubtotal');
+  const lblSubtotalTabla = $('#lblSubtotalTabla');
+  const lblDescuentoMonto = $('#lblDescuentoMonto');
+  const lblDescuentoTabla = $('#lblDescuentoTabla');
   const lblError = $('#venta-error');
   const btnConfirmar = $('#confirmar-button');
   const dialogoOk = $('#venta-ok');
 
-  // Lista de ítems de la venta actual (en memoria)
   let detalles = [];
 
   const dinero = (n) => (Math.round(n * 100) / 100).toLocaleString('en-US',
     { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const escapar = (t) => t.replace(/[&<>"']/g,
+  const escapar = (t) => String(t).replace(/[&<>"']/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  function mostrarError(texto) { lblError.textContent = texto || ''; }
+  function mostrarMensaje(texto, tipo) {
+    if (!lblError) return;
+    lblError.textContent = texto || '';
+    lblError.classList.remove('summary--warn');
+    if (tipo === 'warn') lblError.classList.add('summary--warn');
+  }
 
-  function total() {
+  function subtotalBruto() {
     return detalles.reduce((suma, d) => suma + Math.round(d.cantidad * d.precio * 100), 0) / 100;
   }
 
-  // Redibuja la tabla y actualiza el total
+  function porcentajeActual() {
+    const v = Number(inpDescuento ? inpDescuento.value : 0);
+    return Number.isFinite(v) ? v : NaN;
+  }
+
+  function descuentoValido(p) {
+    return Number.isFinite(p) && p >= 0 && p <= 20;
+  }
+
+  function calcularTotales() {
+    const sub = subtotalBruto();
+    let pct = porcentajeActual();
+    if (!descuentoValido(pct)) pct = 0;
+    const monto = Math.round(sub * (pct / 100) * 100) / 100;
+    const total = Math.round((sub - monto) * 100) / 100;
+    return { sub, pct, monto, total };
+  }
+
+  function validarDescuentoMostrar() {
+    const p = porcentajeActual();
+    if (!descuentoValido(p)) {
+      mostrarMensaje('El descuento máximo permitido es 20%. Ingresa un valor entre 0% y 20% para continuar.', 'warn');
+      return false;
+    }
+    if (lblError && lblError.classList.contains('summary--warn')) {
+      mostrarMensaje('', '');
+    }
+    return true;
+  }
+
   function pintar() {
     cuerpo.innerHTML = detalles.map((d, i) => `
       <tr>
@@ -36,23 +76,31 @@
         <td class="num">Bs. ${dinero(d.cantidad * d.precio)}</td>
         <td class="actions"><button type="button" class="link-button link-button--danger js-quitar" data-i="${i}">Quitar</button></td>
       </tr>`).join('');
-    vacio.hidden = detalles.length > 0;
-    const texto = `Bs. ${dinero(total())}`;
-    lblTotal.textContent = texto;
-    lblTotalTabla.textContent = texto;
+    if (vacio) vacio.hidden = detalles.length > 0;
+
+    const { sub, pct, monto, total } = calcularTotales();
+    const tSub = `Bs. ${dinero(sub)}`;
+    const tMon = `Bs. ${dinero(monto)}`;
+    const tTot = `Bs. ${dinero(total)}`;
+    if (lblSubtotal) lblSubtotal.textContent = tSub;
+    if (lblSubtotalTabla) lblSubtotalTabla.textContent = tSub;
+    if (lblDescuentoMonto) lblDescuentoMonto.textContent = tMon;
+    if (lblDescuentoTabla) lblDescuentoTabla.textContent = tMon;
+    if (lblTotal) lblTotal.textContent = tTot;
+    if (lblTotalTabla) lblTotalTabla.textContent = tTot;
   }
 
   function agregar() {
-    mostrarError('');
+    mostrarMensaje('', '');
     const opcion = selProducto.selectedOptions[0];
     if (!selProducto.value || !opcion) {
-      mostrarError('Selecciona un producto de la lista.');
+      mostrarMensaje('Selecciona un producto de la lista.', '');
       selProducto.focus();
       return;
     }
     const cantidad = Number(inpCantidad.value);
     if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > 9999) {
-      mostrarError('La cantidad debe ser un número entero entre 1 y 9999. Ej.: 2.');
+      mostrarMensaje('La cantidad debe ser un número entero entre 1 y 9999. Ej.: 2.', '');
       inpCantidad.focus();
       return;
     }
@@ -61,10 +109,10 @@
     const existente = detalles.find((d) => d.id === id);
     if (existente) {
       if (existente.cantidad + cantidad > 9999) {
-        mostrarError('La cantidad total de ese producto no puede pasar de 9999.');
+        mostrarMensaje('La cantidad total de ese producto no puede pasar de 9999.', '');
         return;
       }
-      existente.cantidad += cantidad; // mismo producto: se suman las cantidades
+      existente.cantidad += cantidad;
     } else {
       detalles.push({
         id,
@@ -82,42 +130,60 @@
 
   function limpiar() {
     detalles = [];
-    selCliente.value = '0';
-    selProducto.value = '';
-    inpCantidad.value = 1;
-    mostrarError('');
+    if (selCliente) selCliente.value = '0';
+    if (selProducto) selProducto.value = '';
+    if (inpCantidad) inpCantidad.value = 1;
+    if (inpDescuento) inpDescuento.value = '0';
+    mostrarMensaje('', '');
     pintar();
   }
 
-  $('#agregar-button').addEventListener('click', agregar);
-  inpCantidad.addEventListener('keydown', (e) => {
+  if ($('#agregar-button')) $('#agregar-button').addEventListener('click', agregar);
+  if (inpCantidad) inpCantidad.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); agregar(); }
   });
+  if (inpDescuento) {
+    inpDescuento.addEventListener('input', () => {
+      validarDescuentoMostrar();
+      pintar();
+    });
+  }
   cuerpo.addEventListener('click', (e) => {
     const boton = e.target.closest('.js-quitar');
     if (!boton) return;
-    detalles.splice(Number(boton.dataset.i), 1);
-    mostrarError('');
+    const indice = Number(boton.dataset.i);
+    if (!Number.isInteger(indice) || indice < 0 || indice >= detalles.length) {
+      mostrarMensaje('Selecciona el servicio que deseas quitar de la lista.', '');
+      return;
+    }
+    detalles.splice(indice, 1);
+    validarDescuentoMostrar();
     pintar();
   });
-  $('#limpiar-button').addEventListener('click', limpiar);
-  $('#venta-ok-button').addEventListener('click', () => {
+  if ($('#limpiar-button')) $('#limpiar-button').addEventListener('click', limpiar);
+  if ($('#venta-ok-button')) $('#venta-ok-button').addEventListener('click', () => {
     dialogoOk.hidden = true;
-    window.location.reload(); // nueva venta con la fecha actualizada
+    window.location.reload();
   });
 
-  // Confirmar: valida que haya ítems y envía la venta completa al servidor
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    mostrarError('');
+    if (!validarDescuentoMostrar()) return;
+    mostrarMensaje('', '');
     if (detalles.length === 0) {
-      mostrarError('Agrega al menos un producto antes de confirmar la venta.');
+      mostrarMensaje('Agrega al menos un producto antes de confirmar la venta.', '');
+      return;
+    }
+
+    const pct = porcentajeActual();
+    if (!descuentoValido(pct)) {
+      mostrarMensaje('El descuento máximo permitido es 20%. Ingresa un valor entre 0% y 20% para continuar.', 'warn');
       return;
     }
 
     btnConfirmar.disabled = true;
     const textoOriginal = btnConfirmar.textContent;
-    btnConfirmar.textContent = 'Guardando…';
+    btnConfirmar.textContent = 'Guardando...';
 
     try {
       const tokenField = form.querySelector('input[name="__RequestVerificationToken"]');
@@ -130,12 +196,31 @@
           'X-Requested-With': 'XMLHttpRequest'
         },
         body: JSON.stringify({
-          idCliente: Number(selCliente.value),
+          idCliente: Number(selCliente ? selCliente.value : 0),
+          porcentajeDescuento: pct,
           detalles: detalles.map((d) => ({ idProducto: d.id, cantidad: d.cantidad }))
         })
       });
-      if (!respuesta.ok) throw new Error('http');
-      const resultado = await respuesta.json();
+
+      if (respuesta.status === 401) {
+        mostrarMensaje('Tu sesión expiró. Inicia sesión para continuar.', '');
+        return;
+      }
+      if (!respuesta.ok) {
+        // El servidor respondió con un error: mostramos un aviso orientador, nunca el error técnico
+        mostrarMensaje(respuesta.status === 400
+          ? 'No pudimos leer los datos de la venta. Revisa que la cantidad y el descuento sean números e inténtalo de nuevo; no se guardó nada.'
+          : 'Ocurrió un problema interno al guardar la venta. No se guardó nada; inténtalo de nuevo o contacta a soporte.', '');
+        return;
+      }
+      let resultado;
+      try {
+        resultado = await respuesta.json();
+      } catch (errJson) {
+        console.error('Respuesta no válida del servidor al registrar la venta:', errJson);
+        mostrarMensaje('Recibimos una respuesta inesperada del sistema. Actualiza la página para verificar si la venta quedó registrada antes de repetirla.', '');
+        return;
+      }
 
       if (resultado.ok) {
         $('#venta-ok-text').textContent = resultado.mensaje;
@@ -143,10 +228,13 @@
         pintar();
         dialogoOk.hidden = false;
       } else {
-        mostrarError(resultado.mensaje);
+        const msg = resultado.mensaje || 'No se pudo registrar la venta.';
+        const esDescuento = msg.indexOf('descuento máximo permitido') !== -1 || msg.indexOf('descuento maximo permitido') !== -1;
+        mostrarMensaje(msg, esDescuento ? 'warn' : '');
       }
     } catch (err) {
-      mostrarError('No pudimos guardar la venta. Revisa tu conexión e inténtalo de nuevo; no se guardó nada.');
+      console.error('Error de red al registrar la venta:', err);
+      mostrarMensaje('No pudimos guardar la venta. Revisa tu conexión e inténtalo de nuevo; no se guardó nada.', '');
     } finally {
       btnConfirmar.disabled = false;
       btnConfirmar.textContent = textoOriginal;
