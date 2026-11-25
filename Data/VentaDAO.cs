@@ -281,62 +281,126 @@ namespace PrototipoCRUD.Data
             }
         }
 
-        public List<VentaHistorial> ObtenerHistorial()
+        public List<Cliente> ObtenerClientesConCompras()
         {
-            var lista = new List<VentaHistorial>();
-            const string sql = @"
-                SELECT v.id, v.fecha,
-                       COALESCE(c.nombre || ' ' || c.apellido, 'Consumidor Final') AS cliente,
-                       COALESCE(v.vendedor, 'Sin registrar') AS vendedor,
-                       COALESCE(v.subtotal_bruto, v.total) AS subtotal_bruto,
-                       COALESCE(v.porcentaje_descuento, 0) AS porcentaje_descuento,
-                       COALESCE(v.monto_descuento, 0) AS monto_descuento,
-                       COALESCE(v.total_final, v.total) AS total_final
-                  FROM ventas v
-                  LEFT JOIN clientes c ON c.id = v.id_cliente
-                 ORDER BY v.fecha DESC, v.id DESC";
-            NpgsqlConnection? conexion = null;
-            try
+            return ProteccionBD.Ejecutar<List<Cliente>>("Venta.ObtenerClientesConCompras", "mostrar los clientes con compras", () =>
             {
-                conexion = new NpgsqlConnection(_cadenaConexion);
+                var lista = new List<Cliente>();
+                const string sql = @"
+                    SELECT DISTINCT c.id, c.documento, c.nombre, c.apellido
+                      FROM clientes c
+                      JOIN ventas v ON v.id_cliente = c.id
+                     ORDER BY c.apellido, c.nombre";
+                using var conexion = new NpgsqlConnection(_cadenaConexion);
                 conexion.Open();
                 using var comando = new NpgsqlCommand(sql, conexion);
                 using var lector = comando.ExecuteReader();
                 while (lector.Read())
                 {
-                    lista.Add(new VentaHistorial
+                    lista.Add(new Cliente
                     {
                         Id = lector.GetInt32(0),
-                        Fecha = lector.GetDateTime(1),
-                        Cliente = lector.GetString(2),
-                        Vendedor = lector.GetString(3),
-                        SubtotalBruto = lector.GetDecimal(4),
-                        PorcentajeDescuento = lector.GetDecimal(5),
-                        MontoDescuento = lector.GetDecimal(6),
-                        TotalFinal = lector.GetDecimal(7)
+                        Documento = lector.IsDBNull(1) ? string.Empty : lector.GetString(1),
+                        Nombre = lector.IsDBNull(2) ? string.Empty : lector.GetString(2),
+                        Apellido = lector.IsDBNull(3) ? string.Empty : lector.GetString(3)
                     });
                 }
                 return lista;
-            }
-            catch (PostgresException exPg)
+            });
+        }
+
+        public List<VentaHistorial> ObtenerHistorial() => ObtenerHistorial(null, null, 0);
+
+        public List<VentaHistorial> ObtenerHistorial(DateOnly? desde, DateOnly? hasta, int idCliente)
+        {
+            return ProteccionBD.Ejecutar<List<VentaHistorial>>("Venta.ObtenerHistorial", "mostrar el historial de ventas", () =>
             {
-                RegistroErrores.Registrar(exPg, "Venta.ObtenerHistorial");
-                throw TraductorErroresBD.Traducir(exPg, "mostrar el historial de ventas");
-            }
-            catch (NpgsqlException exRed)
-            {
-                RegistroErrores.Registrar(exRed, "Venta.ObtenerHistorial");
-                throw TraductorErroresBD.ErrorConexion(exRed);
-            }
-            catch (Exception ex)
-            {
-                RegistroErrores.Registrar(ex, "Venta.ObtenerHistorial");
-                throw;
-            }
-            finally
-            {
-                conexion?.Dispose();
-            }
+                var sql = @"
+                    SELECT v.id, v.fecha, v.id_cliente,
+                           COALESCE(c.nombre || ' ' || c.apellido, 'Consumidor Final') AS cliente,
+                           COALESCE(c.documento, '') AS documento,
+                           COALESCE(v.vendedor, 'Sin registrar') AS vendedor,
+                           COALESCE(v.subtotal_bruto, v.total) AS subtotal_bruto,
+                           COALESCE(v.porcentaje_descuento, 0) AS porcentaje_descuento,
+                           COALESCE(v.monto_descuento, 0) AS monto_descuento,
+                           COALESCE(v.total_final, v.total) AS total_final
+                      FROM ventas v
+                      LEFT JOIN clientes c ON c.id = v.id_cliente
+                     WHERE 1 = 1";
+                if (desde.HasValue) sql += " AND v.fecha >= @desde";
+                if (hasta.HasValue) sql += " AND v.fecha < @hasta";
+                if (idCliente > 0) sql += " AND v.id_cliente = @idCliente";
+                sql += " ORDER BY v.fecha DESC, v.id DESC";
+
+                using var conexion = new NpgsqlConnection(_cadenaConexion);
+                conexion.Open();
+                var lista = new List<VentaHistorial>();
+
+                using (var comando = new NpgsqlCommand(sql, conexion))
+                {
+                    if (desde.HasValue)
+                    {
+                        comando.Parameters.Add(new NpgsqlParameter("desde", NpgsqlDbType.Timestamp)
+                        {
+                            Value = desde.Value.ToDateTime(TimeOnly.MinValue)
+                        });
+                    }
+                    if (hasta.HasValue)
+                    {
+                        comando.Parameters.Add(new NpgsqlParameter("hasta", NpgsqlDbType.Timestamp)
+                        {
+                            Value = hasta.Value.AddDays(1).ToDateTime(TimeOnly.MinValue)
+                        });
+                    }
+                    if (idCliente > 0) comando.Parameters.AddWithValue("idCliente", idCliente);
+
+                    using var lector = comando.ExecuteReader();
+                    while (lector.Read())
+                    {
+                        lista.Add(new VentaHistorial
+                        {
+                            Id = lector.GetInt32(0),
+                            Fecha = lector.GetDateTime(1),
+                            IdCliente = lector.GetInt32(2),
+                            Cliente = lector.GetString(3),
+                            Documento = lector.GetString(4),
+                            Vendedor = lector.GetString(5),
+                            SubtotalBruto = lector.GetDecimal(6),
+                            PorcentajeDescuento = lector.GetDecimal(7),
+                            MontoDescuento = lector.GetDecimal(8),
+                            TotalFinal = lector.GetDecimal(9)
+                        });
+                    }
+                }
+
+                if (lista.Count == 0) return lista;
+
+                const string sqlLineas = @"
+                    SELECT d.id_venta, p.nombre, d.cantidad, d.precio_unitario, d.subtotal
+                      FROM detalle_ventas d
+                      JOIN productos p ON p.id = d.id_producto
+                     WHERE d.id_venta = ANY(@ids)
+                     ORDER BY d.id";
+                var porId = lista.ToDictionary(v => v.Id);
+                using (var comando = new NpgsqlCommand(sqlLineas, conexion))
+                {
+                    comando.Parameters.AddWithValue("ids", lista.Select(v => v.Id).ToArray());
+                    using var lector = comando.ExecuteReader();
+                    while (lector.Read())
+                    {
+                        if (!porId.TryGetValue(lector.GetInt32(0), out var venta)) continue;
+                        venta.Lineas.Add(new LineaHistorial
+                        {
+                            Producto = lector.IsDBNull(1) ? string.Empty : lector.GetString(1),
+                            Cantidad = lector.GetInt32(2),
+                            PrecioUnitario = lector.GetDecimal(3),
+                            Subtotal = lector.GetDecimal(4)
+                        });
+                    }
+                }
+
+                return lista;
+            });
         }
 
         public List<ResumenDescuentoVendedor> ObtenerAuditoriaDescuentos()

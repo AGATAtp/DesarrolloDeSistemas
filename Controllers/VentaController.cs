@@ -168,20 +168,22 @@ namespace PrototipoCRUD.Controllers
         }
 
         [HttpGet]
-        public IActionResult Historial()
+        public IActionResult Historial(DateOnly? desde, DateOnly? hasta, int cliente = 0)
         {
             var sesion = ObtenerSesion();
             if (sesion == null) return RedirectToAction("Login", "Account", new { returnUrl = "/Venta/Historial" });
+
+            var modelo = new HistorialViewModel { Desde = desde, Hasta = hasta, IdCliente = cliente };
             try
             {
-                var historial = _ventaDao.ObtenerHistorial();
-                return View(historial);
+                modelo.ClientesFiltro = _ventaDao.ObtenerClientesConCompras();
+                modelo.Ventas = _ventaDao.ObtenerHistorial(desde, hasta, cliente);
             }
             catch (Exception ex)
             {
                 ViewBag.ErrorBD = MensajesUX.Para(ex, "VentaController.Historial");
-                return View(new List<VentaHistorial>());
             }
+            return View(modelo);
         }
 
         [HttpGet]
