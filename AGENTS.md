@@ -20,7 +20,7 @@ Todo el vocabulario del catálogo, la base de datos y la interfaz debe correspon
   - `wwwroot/js/ventas.js` - carrito de ventas, descuento 0-20%, resumen en vivo, validación/mensajes y envío JSON.
   - `wwwroot/js/site.js` - ocultado automático de toasts.
 - **Base de datos:** PostgreSQL. Acceso con **Npgsql** desde clases `Data/*DAO.cs`. **No se usa Entity Framework Core**.
-- **Conexión:** clave `Pepokita` en `appsettings.json` (`Host=localhost;Port=5432;Database=Pepokita;Username=postgres;...`). **BD activa:** `Pepokita`. Los nombres `bd_pepokita` y `Bakud_pepopkita` en la raíz del workspace son dumps/respaldos históricos, no la base en uso por la app.
+- **Conexión:** clave `Pepokita` en `appsettings.json` (`Host=localhost;Port=5432;Database=Pepokita;Username=postgres;...`). **BD activa:** `Pepokita`. Los nombres `bd_pepokita` y `Bakud_pepopkita` en la raíz del workspace son dumps/respaldos históricos, no la base en uso por la app. Plantilla sin secretos: `appsettings.example.json`; copiarla a `appsettings.json` en cada entorno (este último está ignorado por Git).
 - **Solución/proyectos:** no hay `.sln`; proyecto principal `PrototipoCRUD/PrototipoCRUD.csproj` y pruebas `PrototipoCRUD.Tests/PrototipoCRUD.Tests.csproj` (referencia al proyecto principal).
 
 ## Reglas de ejecución
@@ -99,6 +99,13 @@ Esquema `public`, normalizado (3FN). Llaves primarias/foráneas, índices y `CHE
 - `Data/seed_autolavado.sql`: seed idempotente del dominio autolavado.
 - `ClienteDAO.AsegurarEstructura()` y `VentaDAO.AsegurarEstructura()` aplican preparación idempotente al iniciar la app (incluye lógica CR-01 en `VentaDAO`).
 - Regla: no reintroducir columnas denormalizadas ni datos de lavandería de ropa.
+
+### Documentación y script completo de la BD (2026-11-25)
+
+- `DB-Diagram.md`: esquema real de `Pepokita` con diagrama Mermaid `erDiagram`, diagrama ASCII (campos clave, cardinalidades y FKs), tabla de relaciones e inventario de 15 índices.
+- `DB-scrip.sql`: script general e idempotente generado desde la BD activa: ENUM `estado_orden_enum`, 14 tablas, 58 restricciones (PK/UNIQUE/FK/CHECK), 15 índices, backfill CR-01 y seed de catálogos (roles, tipos de vehículo, servicios, precios y productos). Verificado ejecutándolo dos veces en una BD temporal (`ON_ERROR_STOP=1`) sin errores ni duplicados.
+- Seguridad: `DB-scrip.sql` no contiene contraseñas, hashes de `usuarios`, documentos, correos ni datos personales. Para sembrar el usuario de prueba CR-01 se usa `Data/cr01_descuentos_vendedor.sql` en local.
+- Configuración: `appsettings.json` contiene credenciales reales de entorno y **no debe versionarse**. Usar `appsettings.example.json` como plantilla; si el archivo real ya estaba trackeado, quitarlo del índice con `git rm --cached appsettings.json` (conservar el archivo local).
 
 ## Reporte de Ventas/Cobranzas (Actividad 10)
 
